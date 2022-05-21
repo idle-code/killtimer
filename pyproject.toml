@@ -6,6 +6,7 @@ authors = ["Pawel Zukowski <p.z.idlecode@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+rich = "^12.4.1"
 
 [tool.poetry.dev-dependencies]
 
