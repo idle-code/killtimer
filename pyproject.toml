@@ -6,9 +6,14 @@ authors = ["Pawel Zukowski <p.z.idlecode@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-rich = "^12.4.1"
+rich = "^12.4.3"
+desktop-notifier = "^3.4.0"
+pytimeparse = "^1.1.8"
 
 [tool.poetry.dev-dependencies]
+
+[tool.poetry.scripts]
+killtimer = "killtimer.main:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
