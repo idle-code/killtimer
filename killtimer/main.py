@@ -85,12 +85,12 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     )
 
 
-notify = DesktopNotifier()
+notify = DesktopNotifier(app_name="Killtimer")
 
 
 def show_notification(message: str, icon_name: str, stay_visible: bool = False):
     urgency = Urgency.Critical if stay_visible else Urgency.Normal
-    notify.send_sync(title="Killtimer", message=message, icon=icon_name, sound=True, urgency=urgency)
+    notify.send_sync(title="", message=message, icon=icon_name, sound=True, urgency=urgency)
 
 
 def show_information(message: str):
@@ -131,14 +131,14 @@ def main() -> int:
     )
     with Progress(*progress_display_columns, expand=True) as progress:
         show_time_progress(should_countdown_continue, progress, "[green]Minimal effort", start_time, start_time + config.minimal_effort_duration)
-        show_information("Minimal effort done!")
         if not should_countdown_continue():
             return 0
+        show_information("Minimal effort done!")
 
         show_time_progress(should_countdown_continue, progress, "[bold white]Work", start_time, start_time + config.work_duration)
-        show_warning("Work done! You are doing overtime!")
         if not should_countdown_continue():
             return 0
+        show_warning("Work done! You are doing overtime!")
 
         start_time = datetime.datetime.now()
         show_time_progress(should_countdown_continue, progress, "[red]Overtime", start_time, start_time + config.overtime_duration)
