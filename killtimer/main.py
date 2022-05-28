@@ -11,6 +11,8 @@ from typing import Optional, List, Callable
 import pytimeparse
 from desktop_notifier import DesktopNotifier, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.console import Console
+from rich import print as rprint
 
 
 MINIMAL_WORK_DURATION = datetime.timedelta(seconds=15)
@@ -105,18 +107,32 @@ def main() -> int:
     args = sys.argv[1:]
     config = parse_configuration(args)
 
+    Console().clear()
+
     # Show deadlines
     start_time = datetime.datetime.now()
-    print(f"Task start:                 {format_time(start_time)}")
-    print(f"Minimal effort finishes on: {format_time(start_time + config.minimal_effort_duration)}")
-    print(f"Work will be done on:       {format_time(start_time + config.work_duration)}")
+    display_configuration(config, start_time)
 
     # Start program under time limit
-    user_command: Optional[subprocess.Popen] = None
-    if config.command_to_run:
-        user_command = subprocess.Popen(" ".join(["exec"] + config.command_to_run), shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        #print(f"New process PID: {user_command.pid}")
+    user_command = start_monitored_command(config)
 
+    display_progress_continuously(config, start_time, user_command)
+
+    total_work_duration = datetime.datetime.now() - start_time
+
+    # Kill program under test if it is still running
+    if user_command and user_command.poll() is None:
+        print("Overtime depleted - terminating user command...")
+        user_command.terminate()
+        # CHECK: wait a bit and kill it if still running?
+
+    # Show total time spent
+    rprint(f"Total work duration: {format_duration(total_work_duration)}")
+
+    return 0
+
+
+def display_progress_continuously(config: RuntimeConfiguration, start_time: datetime.datetime, user_command: Optional[subprocess.Popen]):
     def should_countdown_continue() -> bool:
         return user_command is None or user_command.poll() is None
 
@@ -130,27 +146,43 @@ def main() -> int:
         TextColumn("{task.fields[left]}")
     )
     with Progress(*progress_display_columns, expand=True) as progress:
-        show_time_progress(should_countdown_continue, progress, "[green]Minimal effort", start_time, start_time + config.minimal_effort_duration)
-        if not should_countdown_continue():
-            return 0
-        show_information("Minimal effort done!")
+        try:
+            show_time_progress(should_countdown_continue, progress, "[green]Minimal effort", start_time,
+                               start_time + config.minimal_effort_duration)
+            if not should_countdown_continue():
+                return
+            show_information("Minimal effort done!")
 
-        show_time_progress(should_countdown_continue, progress, "[bold white]Work", start_time, start_time + config.work_duration)
-        if not should_countdown_continue():
-            return 0
-        show_warning("Work done! You are doing overtime!")
+            show_time_progress(should_countdown_continue, progress, "[bold white]Work", start_time,
+                               start_time + config.work_duration)
+            if not should_countdown_continue():
+                return
+            show_warning("Work done! You are doing overtime!")
 
-        start_time = datetime.datetime.now()
-        show_time_progress(should_countdown_continue, progress, "[red]Overtime", start_time, start_time + config.overtime_duration)
+            overtime_start_time = datetime.datetime.now()
+            show_time_progress(should_countdown_continue, progress, "[red]Overtime", overtime_start_time,
+                               overtime_start_time + config.overtime_duration)
+        except KeyboardInterrupt:
+            return
 
-    # Kill program under test if it is still running
-    if user_command and user_command.poll() is None:
-        print("Overtime depleted - terminating user command...")
-        user_command.terminate()
-        # CHECK: wait a bit and kill it if still running?
 
-    # TODO: Show total time spent
-    return 0
+def start_monitored_command(config: RuntimeConfiguration) -> Optional[subprocess.Popen]:
+    user_command: Optional[subprocess.Popen] = None
+    if config.command_to_run:
+        user_command = subprocess.Popen(" ".join(["exec"] + config.command_to_run), shell=True,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # print(f"New process PID: {user_command.pid}")
+    return user_command
+
+
+def display_configuration(config: RuntimeConfiguration, start_time: datetime.datetime):
+    rprint(f"{format_time(start_time)}\t-->"
+           f"\t{format_time(start_time + config.minimal_effort_duration)}\t-->"
+           f"\t{format_time(start_time + config.work_duration)}\t-->"
+           f"\t[red]X[/red]")
+    rprint(f"\t[green]{format_duration(config.minimal_effort_duration)}[/green]\t-->"
+           f"\t[white]{format_duration(config.work_duration)}[/white]\t-->"
+           f"\t[red]{format_duration(config.overtime_duration)}[/red]")
 
 
 def show_time_progress(should_countdown_continue: Callable[[], bool], progress: Progress, label: str, start_time: datetime.datetime, end_time: datetime.datetime):
