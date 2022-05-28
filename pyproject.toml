@@ -1,8 +1,20 @@
 [tool.poetry]
 name = "killtimer"
 version = "0.1.0"
-description = ""
-authors = ["Pawel Zukowski <p.z.idlecode@gmail.com>"]
+description = "Closes application after specified work interval"
+license = "GPL-3.0-or-later"
+homepage = "https://github.com/idle-code/killtimer"
+authors = ["Paweł Żukowski <p.z.idlecode@gmail.com>"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Natural Language :: English",
+    "Operating System :: POSIX",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Unix",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities"
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
