@@ -71,16 +71,19 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
         help="Overtime duration"
     )
     parser.add_argument(
-        "program_to_run",
+        "command_to_run",
         nargs="*",
         help="Executable (with arguments) to run"
     )
 
     config = parser.parse_args(args)
 
-    # TODO: Check if minimal effort is not greater than actual work
+    if config.minimal_effort > config.work:
+        print("Minimal effort cannot take longer than actual work!")
+        sys.exit(1)
+
     return RuntimeConfiguration(
-        command_to_run=config.program_to_run,
+        command_to_run=config.command_to_run,
         minimal_effort_duration=config.minimal_effort,
         work_duration=config.work,
         overtime_duration=config.overtime
