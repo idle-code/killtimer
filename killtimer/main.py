@@ -4,6 +4,8 @@ import datetime
 import math
 import subprocess
 import sys
+import os
+import signal
 import time
 from dataclasses import dataclass
 from typing import Optional, List, Callable
@@ -13,11 +15,6 @@ from desktop_notifier import DesktopNotifier, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.console import Console
 from rich import print as rprint
-
-
-MINIMAL_WORK_DURATION = datetime.timedelta(seconds=15)
-WORK_DURATION = datetime.timedelta(seconds=35) - MINIMAL_WORK_DURATION
-OVERTIME_DURATION = datetime.timedelta(seconds=13)
 
 
 def format_time(t: datetime.datetime) -> str:
@@ -73,6 +70,7 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     parser.add_argument(
         "command_to_run",
         nargs="*",
+        metavar="command",
         help="Executable (with arguments) to run"
     )
 
@@ -126,7 +124,7 @@ def main() -> int:
     # Kill program under test if it is still running
     if user_command and user_command.poll() is None:
         print("Overtime depleted - terminating user command...")
-        user_command.terminate()
+        os.killpg(os.getpgid(user_command.pid), signal.SIGTERM)
         # CHECK: wait a bit and kill it if still running?
 
     # Show total time spent
@@ -173,7 +171,8 @@ def start_monitored_command(config: RuntimeConfiguration) -> Optional[subprocess
     user_command: Optional[subprocess.Popen] = None
     if config.command_to_run:
         user_command = subprocess.Popen(" ".join(["exec"] + config.command_to_run), shell=True,
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                        preexec_fn=os.setsid)
         # print(f"New process PID: {user_command.pid}")
     return user_command
 
