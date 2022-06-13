@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional, List, Callable
 
+import humanfriendly
 import pytimeparse
 from desktop_notifier import DesktopNotifier, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -24,8 +25,7 @@ def format_time(t: datetime.datetime) -> str:
 def format_duration(duration: datetime.timedelta, round_up: bool = False) -> str:
     total_seconds = duration.total_seconds()
     total_seconds = math.ceil(total_seconds) if round_up else math.floor(total_seconds)
-    minutes, seconds = divmod(math.floor(total_seconds), 60)
-    return f"{int(minutes)}:{seconds:02}"
+    return humanfriendly.format_timespan(humanfriendly.coerce_seconds(total_seconds))
 
 
 def parse_timedelta(time_delta_representation: str) -> datetime.timedelta:
@@ -104,22 +104,22 @@ def show_warning(message: str):
     show_notification(message, "data-warning", stay_visible=True)
 
 
+console = Console()
+
+global_start_time = datetime.datetime.now()
+runtime_config: RuntimeConfiguration
+
 def main() -> int:
     args = sys.argv[1:]
-    config = parse_configuration(args)
-
-    Console().clear()
-
-    # Show deadlines
-    start_time = datetime.datetime.now()
-    display_configuration(config, start_time)
+    global runtime_config
+    runtime_config = parse_configuration(args)
 
     # Start program under time limit
-    user_command = start_monitored_command(config)
+    user_command = start_monitored_command(runtime_config)
 
-    display_progress_continuously(config, start_time, user_command)
+    display_progress_continuously(runtime_config, global_start_time, user_command)
 
-    total_work_duration = datetime.datetime.now() - start_time
+    total_work_duration = datetime.datetime.now() - global_start_time
 
     # Kill program under test if it is still running
     if user_command and user_command.poll() is None:
@@ -141,24 +141,26 @@ def display_progress_continuously(config: RuntimeConfiguration, start_time: date
     progress_display_columns = (
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        TextColumn("{task.fields[elapsed]}"),
+        TextColumn("{task.fields[elapsed]} elapsed"),
         BarColumn(bar_width=None),
         TaskProgressColumn(),
-        TextColumn("{task.fields[left]}")
+        TextColumn("{task.fields[left]} left")
     )
-    with Progress(*progress_display_columns, expand=True) as progress:
+
+    with Progress(*progress_display_columns, expand=True, console=console) as progress:
         try:
             show_time_progress(should_countdown_continue, progress, "[green]Minimal effort", start_time,
                                start_time + config.minimal_effort_duration)
             if not should_countdown_continue():
                 return
-            show_information("Minimal effort done!")
+            show_information(f"Minimal effort (<i>{format_duration(config.minimal_effort_duration)}</i>) done!")
 
             show_time_progress(should_countdown_continue, progress, "[bold white]Work", start_time,
                                start_time + config.work_duration)
             if not should_countdown_continue():
                 return
-            show_warning("Work done! You are doing overtime!")
+            show_warning(f"Work (<i>{format_duration(config.work_duration)}</i>) done! <br>"
+                         f"Overtime is counting - finish before <b>{format_time(global_start_time + runtime_config.work_duration + runtime_config.overtime_duration)}</b>!")
 
             overtime_start_time = datetime.datetime.now()
             show_time_progress(should_countdown_continue, progress, "[red]Overtime", overtime_start_time,
@@ -177,14 +179,25 @@ def start_monitored_command(config: RuntimeConfiguration) -> Optional[subprocess
     return user_command
 
 
-def display_configuration(config: RuntimeConfiguration, start_time: datetime.datetime):
-    rprint(f"{format_time(start_time)}\t-->"
-           f"\t{format_time(start_time + config.minimal_effort_duration)}\t-->"
-           f"\t{format_time(start_time + config.work_duration)}\t-->"
-           f"\t[red]X[/red]")
-    rprint(f"\t[green]{format_duration(config.minimal_effort_duration)}[/green]\t-->"
-           f"\t[white]{format_duration(config.work_duration)}[/white]\t-->"
-           f"\t[red]{format_duration(config.overtime_duration)}[/red]")
+def display_configuration():
+    from rich.table import Table
+    from rich.text import Text
+    table = Table(show_header=False, box=None)
+    table.add_column("Span", justify="right")
+    table.add_column("Duration", justify="left")
+    table.add_column("Hour", justify="left")
+
+    table.add_row("Minimal effort",
+                  Text(format_duration(runtime_config.minimal_effort_duration), style="green"),
+                  "until " + format_time(global_start_time + runtime_config.minimal_effort_duration))
+    table.add_row("Work",
+                  Text(format_duration(runtime_config.work_duration), style="bold white"),
+                  "until " + format_time(global_start_time + runtime_config.work_duration))
+    table.add_row("Overtime",
+                  Text(format_duration(runtime_config.overtime_duration), style="red"),
+                  "until " + format_time(global_start_time + runtime_config.work_duration + runtime_config.overtime_duration))
+
+    console.print(table)
 
 
 def show_time_progress(should_countdown_continue: Callable[[], bool], progress: Progress, label: str, start_time: datetime.datetime, end_time: datetime.datetime):
@@ -193,6 +206,9 @@ def show_time_progress(should_countdown_continue: Callable[[], bool], progress: 
     elapsed = datetime.datetime.now() - start_time
     while elapsed < task_duration:
         time_left = task_duration - elapsed
+        if int(elapsed.total_seconds()) % 30 == 0:
+            console.clear()
+            display_configuration()
         progress.update(task_progress,
                         completed=elapsed.total_seconds(),
                         elapsed=format_duration(elapsed),

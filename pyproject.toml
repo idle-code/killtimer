@@ -21,6 +21,7 @@ python = "^3.8"
 rich = "^12.4.3"
 desktop-notifier = "^3.4.0"
 pytimeparse = "^1.1.8"
+humanfriendly = "^10.0"
 
 [tool.poetry.dev-dependencies]
 
