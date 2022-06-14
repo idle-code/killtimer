@@ -8,15 +8,15 @@ import sys
 import os
 import signal
 import time
-from dataclasses import dataclass
-from typing import Optional, List, Callable
-
 import humanfriendly
 import pytimeparse
+from dataclasses import dataclass
+from typing import Optional, List, Callable
 from desktop_notifier import DesktopNotifier, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.console import Console
 from rich import print as rprint
+from playsound import playsound
 
 
 def format_time(t: datetime.datetime) -> str:
@@ -35,11 +35,13 @@ def parse_timedelta(time_delta_representation: str) -> datetime.timedelta:
 
 @dataclass
 class RuntimeConfiguration:
+    start_time: datetime.datetime
     minimal_effort_duration: datetime.timedelta = datetime.timedelta(minutes=10)
     work_duration: datetime.timedelta = datetime.timedelta(hours=1)
     overtime_duration: datetime.timedelta = datetime.timedelta(minutes=15)
     command_to_run: Optional[List[str]] = None
     log_file_path: Optional[str] = None
+    notification_sound_path: Optional[str] = None
 
 
 def parse_configuration(args: [str]) -> RuntimeConfiguration:
@@ -77,6 +79,13 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
         help="Log file where to store amount of work done"
     )
     parser.add_argument(
+        "-s", "--sound",
+        type=str,
+        default=None,
+        metavar="sound_file",
+        help="Sound file to play when minimal effort or work period is reached"
+    )
+    parser.add_argument(
         "command_to_run",
         nargs="*",
         metavar="command",
@@ -90,34 +99,42 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
         sys.exit(1)
 
     return RuntimeConfiguration(
+        start_time=datetime.datetime.now(),
         command_to_run=config.command_to_run,
         minimal_effort_duration=config.minimal_effort,
         work_duration=config.work,
         overtime_duration=config.overtime,
-        log_file_path=config.log
+        log_file_path=config.log,
+        notification_sound_path=config.sound
     )
 
 
 notify = DesktopNotifier(app_name="Killtimer")
 
 
+console = Console()
+
+runtime_config: RuntimeConfiguration
+
+
+def play_notification_sound():
+    if runtime_config.notification_sound_path:
+        playsound(runtime_config.notification_sound_path, block=False)
+
 def show_notification(message: str, icon_name: str, stay_visible: bool = False):
     urgency = Urgency.Critical if stay_visible else Urgency.Normal
     notify.send_sync(title="", message=message, icon=icon_name, sound=True, urgency=urgency)
 
-
-def show_information(message: str):
-    show_notification(message, "data-information")
-
-
-def show_warning(message: str):
-    show_notification(message, "data-warning", stay_visible=True)
+def finished_minimal_effort_notification():
+    play_notification_sound()
+    show_notification(f"Minimal effort (<i>{format_duration(runtime_config.minimal_effort_duration)}</i>) done!", "data-information")
 
 
-console = Console()
+def finished_work_notification():
+    play_notification_sound()
+    show_notification(f"Work (<i>{format_duration(runtime_config.work_duration)}</i>) done! <br>"
+                       f"Overtime is counting - finish before <b>{format_time(runtime_config.start_time + runtime_config.work_duration + runtime_config.overtime_duration)}</b>!", "data-warning", stay_visible=True)
 
-global_start_time = datetime.datetime.now()
-runtime_config: RuntimeConfiguration
 
 def main() -> int:
     args = sys.argv[1:]
@@ -125,11 +142,11 @@ def main() -> int:
     runtime_config = parse_configuration(args)
 
     # Start program under time limit
-    user_command = start_monitored_command(runtime_config)
+    user_command = start_monitored_command()
 
-    display_progress_continuously(runtime_config, global_start_time, user_command)
+    display_progress_continuously(user_command)
 
-    total_work_duration = datetime.datetime.now() - global_start_time
+    total_work_duration = datetime.datetime.now() - runtime_config.start_time
 
     # Kill program under test if it is still running
     if user_command and user_command.poll() is None:
@@ -146,7 +163,7 @@ def main() -> int:
         with open(runtime_config.log_file_path, mode="a") as log_file:
             csv_writer = csv.writer(log_file, delimiter=',', quotechar='"')
             csv_writer.writerow([
-                global_start_time.isoformat(),
+                runtime_config.start_time.isoformat(),
                 runtime_config.minimal_effort_duration,
                 runtime_config.work_duration,
                 runtime_config.overtime_duration,
@@ -157,7 +174,7 @@ def main() -> int:
     return 0
 
 
-def display_progress_continuously(config: RuntimeConfiguration, start_time: datetime.datetime, user_command: Optional[subprocess.Popen]):
+def display_progress_continuously(user_command: Optional[subprocess.Popen]):
     def should_countdown_continue() -> bool:
         return user_command is None or user_command.poll() is None
 
@@ -173,30 +190,29 @@ def display_progress_continuously(config: RuntimeConfiguration, start_time: date
 
     with Progress(*progress_display_columns, expand=True, console=console) as progress:
         try:
-            show_time_progress(should_countdown_continue, progress, "[green]Minimal effort", start_time,
-                               start_time + config.minimal_effort_duration)
+            show_time_progress(should_countdown_continue, progress, "[green]Minimal effort", runtime_config.start_time,
+                               runtime_config.start_time + runtime_config.minimal_effort_duration)
             if not should_countdown_continue():
                 return
-            show_information(f"Minimal effort (<i>{format_duration(config.minimal_effort_duration)}</i>) done!")
+            finished_minimal_effort_notification()
 
-            show_time_progress(should_countdown_continue, progress, "[bold white]Work", start_time,
-                               start_time + config.work_duration)
+            show_time_progress(should_countdown_continue, progress, "[bold white]Work", runtime_config.start_time,
+                               runtime_config.start_time + runtime_config.work_duration)
             if not should_countdown_continue():
                 return
-            show_warning(f"Work (<i>{format_duration(config.work_duration)}</i>) done! <br>"
-                         f"Overtime is counting - finish before <b>{format_time(global_start_time + runtime_config.work_duration + runtime_config.overtime_duration)}</b>!")
+            finished_work_notification()
 
             overtime_start_time = datetime.datetime.now()
             show_time_progress(should_countdown_continue, progress, "[red]Overtime", overtime_start_time,
-                               overtime_start_time + config.overtime_duration)
+                               overtime_start_time + runtime_config.overtime_duration)
         except KeyboardInterrupt:
             return
 
 
-def start_monitored_command(config: RuntimeConfiguration) -> Optional[subprocess.Popen]:
+def start_monitored_command() -> Optional[subprocess.Popen]:
     user_command: Optional[subprocess.Popen] = None
-    if config.command_to_run:
-        user_command = subprocess.Popen(" ".join(["exec"] + config.command_to_run), shell=True,
+    if runtime_config.command_to_run:
+        user_command = subprocess.Popen(" ".join(["exec"] + runtime_config.command_to_run), shell=True,
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                         preexec_fn=os.setsid)
         time.sleep(1)
@@ -217,13 +233,13 @@ def display_configuration():
 
     table.add_row("Minimal effort",
                   Text(format_duration(runtime_config.minimal_effort_duration), style="green"),
-                  "until " + format_time(global_start_time + runtime_config.minimal_effort_duration))
+                  "until " + format_time(runtime_config.start_time + runtime_config.minimal_effort_duration))
     table.add_row("Work",
                   Text(format_duration(runtime_config.work_duration), style="bold white"),
-                  "until " + format_time(global_start_time + runtime_config.work_duration))
+                  "until " + format_time(runtime_config.start_time + runtime_config.work_duration))
     table.add_row("Overtime",
                   Text(format_duration(runtime_config.overtime_duration), style="red"),
-                  "until " + format_time(global_start_time + runtime_config.work_duration + runtime_config.overtime_duration))
+                  "until " + format_time(runtime_config.start_time + runtime_config.work_duration + runtime_config.overtime_duration))
 
     console.print(table)
 
