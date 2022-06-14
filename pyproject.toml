@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "killtimer"
-version = "0.1.3"
+version = "0.1.4"
 description = "Closes application after specified work interval"
 license = "GPL-3.0-or-later"
 homepage = "https://github.com/idle-code/killtimer"

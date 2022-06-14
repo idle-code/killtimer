@@ -190,6 +190,9 @@ def display_progress_continuously(user_command: Optional[subprocess.Popen]):
 
     with Progress(*progress_display_columns, expand=True, console=console) as progress:
         try:
+            console.clear()
+            display_configuration()
+
             show_time_progress(should_countdown_continue, progress, "[green]Minimal effort", runtime_config.start_time,
                                runtime_config.start_time + runtime_config.minimal_effort_duration)
             if not should_countdown_continue():
@@ -240,6 +243,8 @@ def display_configuration():
     table.add_row("Overtime",
                   Text(format_duration(runtime_config.overtime_duration), style="red"),
                   "until " + format_time(runtime_config.start_time + runtime_config.work_duration + runtime_config.overtime_duration))
+    if runtime_config.command_to_run:
+        table.add_row("Monitored command", runtime_config.command_to_run[0], " ".join(runtime_config.command_to_run[1:]))
 
     console.print(table)
 
