@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import csv
 import datetime
 import math
 import subprocess
@@ -38,6 +39,7 @@ class RuntimeConfiguration:
     work_duration: datetime.timedelta = datetime.timedelta(hours=1)
     overtime_duration: datetime.timedelta = datetime.timedelta(minutes=15)
     command_to_run: Optional[List[str]] = None
+    log_file_path: Optional[str] = None
 
 
 def parse_configuration(args: [str]) -> RuntimeConfiguration:
@@ -68,6 +70,13 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
         help="Overtime duration"
     )
     parser.add_argument(
+        "-l", "--log",
+        type=str,
+        default=None,
+        metavar="log_file",
+        help="Log file where to store amount of work done"
+    )
+    parser.add_argument(
         "command_to_run",
         nargs="*",
         metavar="command",
@@ -84,7 +93,8 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
         command_to_run=config.command_to_run,
         minimal_effort_duration=config.minimal_effort,
         work_duration=config.work,
-        overtime_duration=config.overtime
+        overtime_duration=config.overtime,
+        log_file_path=config.log
     )
 
 
@@ -129,6 +139,20 @@ def main() -> int:
 
     # Show total time spent
     rprint(f"Total work duration: {format_duration(total_work_duration)}")
+
+    # If log file path was provided - add appropriate entry
+    if runtime_config.log_file_path:
+        print(f"Saving work proof to {runtime_config.log_file_path}")
+        with open(runtime_config.log_file_path, mode="a") as log_file:
+            csv_writer = csv.writer(log_file, delimiter=',', quotechar='"')
+            csv_writer.writerow([
+                global_start_time.isoformat(),
+                runtime_config.minimal_effort_duration,
+                runtime_config.work_duration,
+                runtime_config.overtime_duration,
+                total_work_duration,
+                " ".join(runtime_config.command_to_run)
+            ])
 
     return 0
 
@@ -175,6 +199,10 @@ def start_monitored_command(config: RuntimeConfiguration) -> Optional[subprocess
         user_command = subprocess.Popen(" ".join(["exec"] + config.command_to_run), shell=True,
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                         preexec_fn=os.setsid)
+        time.sleep(1)
+        if user_command.poll() is not None:
+            rprint("[red]Could not launch monitored command![/red]")
+            sys.exit(1)
         # print(f"New process PID: {user_command.pid}")
     return user_command
 
