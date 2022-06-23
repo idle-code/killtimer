@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import asyncio
 import csv
 import datetime
 import math
@@ -8,6 +9,7 @@ import sys
 import os
 import signal
 import time
+
 import humanfriendly
 import pytimeparse
 from dataclasses import dataclass
@@ -39,6 +41,7 @@ class RuntimeConfiguration:
     minimal_effort_duration: datetime.timedelta = datetime.timedelta(minutes=10)
     work_duration: datetime.timedelta = datetime.timedelta(hours=1)
     overtime_duration: datetime.timedelta = datetime.timedelta(minutes=15)
+    title: Optional[str] = None
     command_to_run: Optional[List[str]] = None
     log_file_path: Optional[str] = None
     notification_sound_path: Optional[str] = None
@@ -79,6 +82,13 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
         help="Log file where to store amount of work done"
     )
     parser.add_argument(
+        "-t", "--title",
+        type=str,
+        default=None,
+        metavar="title",
+        help="Title to display above progress bars and configuration"
+    )
+    parser.add_argument(
         "-s", "--sound",
         type=str,
         default=None,
@@ -98,8 +108,12 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
         print("Minimal effort cannot take longer than actual work!")
         sys.exit(1)
 
+    if config.title:
+        notify.app_name = config.title
+
     return RuntimeConfiguration(
         start_time=datetime.datetime.now(),
+        title=config.title,
         command_to_run=config.command_to_run,
         minimal_effort_duration=config.minimal_effort,
         work_duration=config.work,
@@ -110,7 +124,7 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
 
 
 notify = DesktopNotifier(app_name="Killtimer")
-
+event_loop = asyncio.get_event_loop()
 
 console = Console()
 
@@ -123,7 +137,7 @@ def play_notification_sound():
 
 def show_notification(message: str, icon_name: str, stay_visible: bool = False):
     urgency = Urgency.Critical if stay_visible else Urgency.Normal
-    notify.send_sync(title="", message=message, icon=icon_name, sound=True, urgency=urgency)
+    event_loop.run_until_complete(notify.send(title="", message=message, icon=icon_name, sound=True, urgency=urgency))
 
 def finished_minimal_effort_notification():
     play_notification_sound()
@@ -143,6 +157,7 @@ def main() -> int:
 
     # Start program under time limit
     user_command = start_monitored_command()
+    runtime_config.start_time = datetime.datetime.now()
 
     display_progress_continuously(user_command)
 
@@ -153,6 +168,8 @@ def main() -> int:
         print("Overtime depleted - terminating user command...")
         os.killpg(os.getpgid(user_command.pid), signal.SIGTERM)
         # CHECK: wait a bit and kill it if still running?
+
+    event_loop.run_until_complete(notify.clear_all())
 
     # Show total time spent
     rprint(f"Total work duration: {format_duration(total_work_duration)}")
@@ -222,13 +239,19 @@ def start_monitored_command() -> Optional[subprocess.Popen]:
         if user_command.poll() is not None:
             rprint("[red]Could not launch monitored command![/red]")
             sys.exit(1)
-        # print(f"New process PID: {user_command.pid}")
     return user_command
 
 
 def display_configuration():
     from rich.table import Table
     from rich.text import Text
+    from rich.panel import Panel
+    from rich.align import Align
+
+    if runtime_config.title:
+        title_panel = Panel(Align.center(runtime_config.title))
+        console.print(title_panel)
+
     table = Table(show_header=False, box=None)
     table.add_column("Span", justify="right")
     table.add_column("Duration", justify="left")

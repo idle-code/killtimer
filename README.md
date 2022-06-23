@@ -22,7 +22,7 @@ $ pip install [--user] killtimer
 
 ## Usage
 ```usage
-usage: killtimer [-h] [-m duration] [-w duration] [-o duration] [-l log_file] [-s sound_file] [command [command ...]]
+usage: killtimer [-h] [-m duration] [-w duration] [-o duration] [-l log_file] [-t title] [-s sound_file] [command [command ...]]
 
 Close application when time runs out
 
@@ -39,11 +39,13 @@ optional arguments:
                         Overtime duration (default: 0:15:00)
   -l log_file, --log log_file
                         Log file where to store amount of work done (default: None)
+  -t title, --title title
+                        Title to display above progress bars and configuration (default: None)
   -s sound_file, --sound sound_file
                         Sound file to play when minimal effort or work period is reached (default: None)
 ```
 
 Usually you would want to create alias in your `*rc` file like:
 ```shell
-alias blender-work="killtimer -m 10m -w 1h -o 10m -l /path/to/worklog.csv blender $*"
+alias blender-work="killtimer -m 10m -w 1h -o 10m -t 'Creative work' -l /path/to/worklog.csv blender"
 ```
