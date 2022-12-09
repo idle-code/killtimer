@@ -28,6 +28,7 @@ playsound = "^1.3.0"
 
 [tool.poetry.scripts]
 killtimer = "killtimer.main:main"
+killtimer-stats = "killtimer.stats:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

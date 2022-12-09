@@ -251,3 +251,5 @@ gen/
 # When debugging grammar there may appear some java files:
 *.java
 *.class
+
+*.csv
