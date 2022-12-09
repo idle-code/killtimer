@@ -8,7 +8,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import List
 
-from main import parse_timedelta
+from rich.console import Console
+from rich.table import Table
+
+from main import parse_timedelta, format_duration
 
 
 @dataclass
@@ -91,12 +94,17 @@ def main() -> int:
     for record in work_log:
         groupings[record.command].append(record)
 
+    console = Console()
     # TODO: Use rich to generate pretty tables
     if runtime_config.stat_total_duration_worked:
-        print("Program\tEntry count\tTotal worked duration")
+        table = Table(show_header=True)
+        table.add_column("Entry count", justify="center")
+        table.add_column("Total duration", justify="left")
+        table.add_column("Program", justify="left")
         for program, records in groupings.items():
             duration_sum = sum(map(lambda r: r.total_work_duration, records), datetime.timedelta())
-            print(f"{program}\t{len(records)}\t{duration_sum}")
+            table.add_row(str(len(records)), format_duration(duration_sum), program)
+        console.print(table)
 
     return 0
 
