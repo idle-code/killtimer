@@ -112,15 +112,18 @@ def main() -> int:
 
     console = Console()
     if runtime_config.stat_total_duration_worked:
-        table = Table(show_header=True)
-        table.add_column("Entry count", justify="center")
-        table.add_column("Total duration", justify="left")
-        table.add_column("Title/Program", justify="left")
+        grouping_table = Table(show_header=True)
+        grouping_table.add_column("Entry count", justify="center")
+        grouping_table.add_column("Total duration", justify="left")
+        grouping_table.add_column("Title/Program", justify="left")
         for program, records in groupings.items():
             duration_sum = sum(map(lambda r: r.total_work_duration, records), datetime.timedelta())
+            grouping_table.add_row(str(len(records)), format_duration(duration_sum), program)
 
-            table.add_row(str(len(records)), format_duration(duration_sum), program)
-        console.print(table)
+        grouping_table.add_section()
+        total_duration = sum(map(lambda r: r.total_work_duration, work_log), datetime.timedelta())
+        grouping_table.add_row(str(len(work_log)), format_duration(total_duration))
+        console.print(grouping_table)
 
     return 0
 
