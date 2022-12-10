@@ -21,6 +21,9 @@ $ pip install [--user] killtimer
 ```
 
 ## Usage
+
+![Screencast](screencast.gif)
+
 ```usage
 usage: killtimer [-h] [-m duration] [-w duration] [-o duration] [-l log_file] [-t title] [-s sound_file] [command [command ...]]
 

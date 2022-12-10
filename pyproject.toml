@@ -1,9 +1,10 @@
 [tool.poetry]
 name = "killtimer"
-version = "0.2.1"
+version = "0.2.2"
 description = "Closes application after specified work interval"
 license = "GPL-3.0-or-later"
 homepage = "https://github.com/idle-code/killtimer"
+readme = "README.md"
 authors = ["Paweł Żukowski <p.z.idlecode@gmail.com>"]
 classifiers = [
     "Environment :: Console",
