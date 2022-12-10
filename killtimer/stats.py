@@ -11,7 +11,7 @@ from typing import List, Optional
 from rich.console import Console
 from rich.table import Table
 
-from main import parse_timedelta, format_duration
+from killtimer.main import parse_timedelta, format_duration
 
 
 @dataclass
