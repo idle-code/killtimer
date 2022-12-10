@@ -18,7 +18,7 @@ from desktop_notifier import DesktopNotifier, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.console import Console
 from rich import print as rprint
-from playsound import playsound
+from just_playback import Playback
 
 
 def format_time(t: datetime.datetime) -> str:
@@ -130,10 +130,11 @@ console = Console()
 
 runtime_config: RuntimeConfiguration
 
-
+playback = Playback()
 def play_notification_sound():
     if runtime_config.notification_sound_path:
-        playsound(runtime_config.notification_sound_path, block=False)
+        playback.load_file(runtime_config.notification_sound_path)
+        playback.play()
 
 def show_notification(message: str, icon_name: str, stay_visible: bool = False):
     urgency = Urgency.Critical if stay_visible else Urgency.Normal
@@ -185,6 +186,7 @@ def main() -> int:
                 runtime_config.work_duration,
                 runtime_config.overtime_duration,
                 total_work_duration,
+                runtime_config.title,
                 " ".join(runtime_config.command_to_run)
             ])
 

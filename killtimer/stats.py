@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from rich.console import Console
 from rich.table import Table
@@ -58,18 +58,31 @@ class WorkLogRecord:
     work_duration: datetime.timedelta
     overtime_duration: datetime.timedelta
     total_work_duration: datetime.timedelta
+    title: Optional[str]
     command: str
 
     @staticmethod
     def from_row(row: List[str]) -> "WorkLogRecord":
-        return WorkLogRecord(
-            start_time=datetime.datetime.fromisoformat(row[0]),
-            minimal_effort_duration=parse_timedelta(row[1]),
-            work_duration=parse_timedelta(row[2]),
-            overtime_duration=parse_timedelta(row[3]),
-            total_work_duration=parse_timedelta(row[4]),
-            command=row[5]
-        )
+        if len(row) == 6:
+            return WorkLogRecord(
+                start_time=datetime.datetime.fromisoformat(row[0]),
+                minimal_effort_duration=parse_timedelta(row[1]),
+                work_duration=parse_timedelta(row[2]),
+                overtime_duration=parse_timedelta(row[3]),
+                total_work_duration=parse_timedelta(row[4]),
+                title=None,
+                command=row[5]
+            )
+        else:
+            return WorkLogRecord(
+                start_time=datetime.datetime.fromisoformat(row[0]),
+                minimal_effort_duration=parse_timedelta(row[1]),
+                work_duration=parse_timedelta(row[2]),
+                overtime_duration=parse_timedelta(row[3]),
+                total_work_duration=parse_timedelta(row[4]),
+                title=row[5],
+                command=row[6]
+            )
 
 
 def load_log_file(log_file_path: str) -> List[WorkLogRecord]:
@@ -92,17 +105,20 @@ def main() -> int:
     # Generate stats
     groupings = defaultdict(list)
     for record in work_log:
-        groupings[record.command].append(record)
+        if record.title:
+            groupings[record.title].append(record)
+        else:
+            groupings[record.command].append(record)
 
     console = Console()
-    # TODO: Use rich to generate pretty tables
     if runtime_config.stat_total_duration_worked:
         table = Table(show_header=True)
         table.add_column("Entry count", justify="center")
         table.add_column("Total duration", justify="left")
-        table.add_column("Program", justify="left")
+        table.add_column("Title/Program", justify="left")
         for program, records in groupings.items():
             duration_sum = sum(map(lambda r: r.total_work_duration, records), datetime.timedelta())
+
             table.add_row(str(len(records)), format_duration(duration_sum), program)
         console.print(table)
 
