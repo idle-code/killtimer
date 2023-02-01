@@ -12,13 +12,16 @@ import time
 
 import humanfriendly
 import pytimeparse
+import wave
+import pyaudio
 from dataclasses import dataclass
 from typing import Optional, List, Callable
 from desktop_notifier import DesktopNotifier, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.console import Console
 from rich import print as rprint
-from playsound import playsound
+
+from alsa_utils import noalsaerr
 
 
 def format_time(t: datetime.datetime) -> str:
@@ -130,10 +133,28 @@ console = Console()
 
 runtime_config: RuntimeConfiguration
 
+AUDIO_CHUNK_SIZE = 1024
+
 
 def play_notification_sound():
     if runtime_config.notification_sound_path:
-        playsound(runtime_config.notification_sound_path, block=False)
+        # TODO: make playback async
+        with noalsaerr(), wave.open(runtime_config.notification_sound_path, 'rb') as wf:
+            pa = pyaudio.PyAudio()
+            stream = pa.open(format=pa.get_format_from_width(wf.getsampwidth()),
+                             channels=wf.getnchannels(),
+                             rate=wf.getframerate(),
+                             output=True)
+
+            # TODO: For Python 3.8 use while len(data := wf.readframes(AUDIO_CHUNK_SIZE))
+            while True:
+                data = wf.readframes(AUDIO_CHUNK_SIZE)
+                if not data:
+                    break
+                stream.write(data)
+
+            stream.close()
+            pa.terminate()
 
 
 def show_notification(message: str, icon_name: str, stay_visible: bool = False):
