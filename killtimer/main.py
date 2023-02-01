@@ -21,7 +21,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 from rich.console import Console
 from rich import print as rprint
 
-from alsa_utils import noalsaerr
+from .alsa_utils import noalsaerr
 
 
 def format_time(t: datetime.datetime) -> str:
