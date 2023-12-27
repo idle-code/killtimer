@@ -41,9 +41,9 @@ def parse_timedelta(time_delta_representation: str) -> datetime.timedelta:
 @dataclass
 class RuntimeConfiguration:
     start_time: datetime.datetime
-    minimal_effort_duration: datetime.timedelta = datetime.timedelta(minutes=10)
+    minimal_effort_duration: Optional[datetime.timedelta] = None
     work_duration: datetime.timedelta = datetime.timedelta(hours=1)
-    overtime_duration: datetime.timedelta = datetime.timedelta(minutes=15)
+    overtime_duration: Optional[datetime.timedelta] = None
     title: Optional[str] = None
     command_to_run: Optional[List[str]] = None
     log_file_path: Optional[str] = None
@@ -59,7 +59,6 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     parser.add_argument(
         "-m", "--minimal-effort",
         type=parse_timedelta,
-        default=RuntimeConfiguration.minimal_effort_duration,
         metavar="duration",
         help="Minimal work duration"
     )
@@ -73,7 +72,6 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     parser.add_argument(
         "-o", "--overtime",
         type=parse_timedelta,
-        default=RuntimeConfiguration.overtime_duration,
         metavar="duration",
         help="Overtime duration"
     )
@@ -106,6 +104,11 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     )
 
     config = parser.parse_args(args)
+    if config.minimal_effort is None:
+        config.minimal_effort = 0.50 * config.work
+        
+    if config.overtime is None:
+        config.overtime = 0.25 * config.work
 
     if config.minimal_effort > config.work:
         print("Minimal effort cannot take longer than actual work!")
