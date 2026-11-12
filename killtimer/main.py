@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import argparse
-import asyncio
 import csv
 import datetime
 import math
@@ -16,7 +15,7 @@ import wave
 import pyaudio
 from dataclasses import dataclass
 from typing import Optional, List, Callable
-from desktop_notifier import DesktopNotifier, Urgency
+from desktop_notifier import DesktopNotifierSync, Icon, Sound, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.console import Console
 from rich import print as rprint
@@ -129,9 +128,9 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     )
 
 
-notify = DesktopNotifier(app_name="Killtimer")
-event_loop = asyncio.new_event_loop()
-asyncio.set_event_loop(event_loop)
+notify = DesktopNotifierSync(app_name="Killtimer")
+# Same sound that desktop-notifier < 4 used for sound=True
+NOTIFICATION_SOUND = Sound(name="message-new-instant")
 
 console = Console()
 
@@ -150,11 +149,7 @@ def play_notification_sound():
                              rate=wf.getframerate(),
                              output=True)
 
-            # TODO: For Python 3.8 use while len(data := wf.readframes(AUDIO_CHUNK_SIZE))
-            while True:
-                data = wf.readframes(AUDIO_CHUNK_SIZE)
-                if not data:
-                    break
+            while data := wf.readframes(AUDIO_CHUNK_SIZE):
                 stream.write(data)
 
             stream.close()
@@ -163,7 +158,7 @@ def play_notification_sound():
 
 def show_notification(message: str, icon_name: str, stay_visible: bool = False):
     urgency = Urgency.Critical if stay_visible else Urgency.Normal
-    event_loop.run_until_complete(notify.send(title="", message=message, icon=icon_name, sound=True, urgency=urgency))
+    notify.send(title="", message=message, icon=Icon(name=icon_name), sound=NOTIFICATION_SOUND, urgency=urgency)
 
 
 def finished_minimal_effort_notification():
@@ -196,7 +191,7 @@ def main() -> int:
         os.killpg(os.getpgid(user_command.pid), signal.SIGTERM)
         # CHECK: wait a bit and kill it if still running?
 
-    event_loop.run_until_complete(notify.clear_all())
+    notify.clear_all()
 
     # Show total time spent
     rprint(f"Total work duration: {format_duration(total_work_duration)}")
