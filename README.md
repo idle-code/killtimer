@@ -12,7 +12,8 @@ This may sound counterintuitive, but a lot of studies show that limiting time fo
   - Overtime
 - Keep track of user-provided command and kill it if it has been running too long (after overtime)
 - Utilizes desktop notifications to inform users about the finished period
-- Optionally can play a sound when minimal effort/work period is done
+- Plays a notification sound when minimal effort/work period is done - optionally a custom sound file
+  (sounds are played by the desktop's notification server, so they depend on its sound support)
 - Allow storing amount of work done as CSV file for further analysis 
 
 ## Install
@@ -20,12 +21,6 @@ Killtimer requires Python 3.11 or newer. The recommended way to install it is wi
 which puts the `killtimer` and `killtimer-stats` commands on your `PATH` in an isolated environment:
 ```console
 $ pipx install killtimer
-```
-
-The [PyAudio](https://pypi.org/project/PyAudio/) dependency (used for sound playback) is compiled during installation,
-so the PortAudio headers and a C compiler need to be available first. On Debian/Ubuntu:
-```console
-$ sudo apt install portaudio19-dev python3-dev build-essential
 ```
 
 To upgrade to the newest version later:
@@ -57,8 +52,9 @@ options:
   -t, --title title     Title to display above progress bars and configuration
                         (default: None)
   -s, --sound sound_file
-                        Sound file to play when minimal effort or work period
-                        is reached (default: None)
+                        Sound file to play with the notification when minimal
+                        effort or work period is reached (instead of the
+                        default notification sound) (default: None)
 ```
 
 When not given, the minimal effort defaults to 50% and the overtime to 25% of the work duration.

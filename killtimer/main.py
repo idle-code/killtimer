@@ -11,16 +11,12 @@ import time
 
 import humanfriendly
 import pytimeparse
-import wave
-import pyaudio
 from dataclasses import dataclass
 from typing import Optional, List, Callable
 from desktop_notifier import DesktopNotifierSync, Icon, Sound, Urgency
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.console import Console
 from rich import print as rprint
-
-from .alsa_utils import noalsaerr
 
 
 def format_time(t: datetime.datetime) -> str:
@@ -35,6 +31,14 @@ def format_duration(duration: datetime.timedelta, round_up: bool = False) -> str
 
 def parse_timedelta(time_delta_representation: str) -> datetime.timedelta:
     return datetime.timedelta(seconds=pytimeparse.parse(time_delta_representation))
+
+
+def existing_file_path(path: str) -> str:
+    # The notification server runs in a different working directory, so it needs an absolute path
+    absolute_path = os.path.abspath(os.path.expanduser(path))
+    if not os.path.isfile(absolute_path):
+        raise argparse.ArgumentTypeError(f"file not found: {path}")
+    return absolute_path
 
 
 @dataclass
@@ -91,10 +95,11 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     )
     parser.add_argument(
         "-s", "--sound",
-        type=str,
+        type=existing_file_path,
         default=None,
         metavar="sound_file",
-        help="Sound file to play when minimal effort or work period is reached"
+        help="Sound file to play with the notification when minimal effort or work period is reached "
+             "(instead of the default notification sound)"
     )
     parser.add_argument(
         "command_to_run",
@@ -134,44 +139,30 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
 
 notify = DesktopNotifierSync(app_name="Killtimer")
 # Same sound that desktop-notifier < 4 used for sound=True
-NOTIFICATION_SOUND = Sound(name="message-new-instant")
+DEFAULT_NOTIFICATION_SOUND = Sound(name="message-new-instant")
 
 console = Console()
 
 runtime_config: RuntimeConfiguration
 
-AUDIO_CHUNK_SIZE = 1024
-
-
-def play_notification_sound():
+def notification_sound() -> Sound:
     if runtime_config.notification_sound_path:
-        # TODO: make playback async
-        with noalsaerr(), wave.open(runtime_config.notification_sound_path, 'rb') as wf:
-            pa = pyaudio.PyAudio()
-            stream = pa.open(format=pa.get_format_from_width(wf.getsampwidth()),
-                             channels=wf.getnchannels(),
-                             rate=wf.getframerate(),
-                             output=True)
-
-            while data := wf.readframes(AUDIO_CHUNK_SIZE):
-                stream.write(data)
-
-            stream.close()
-            pa.terminate()
+        # The notification specification defines the "sound-file" hint as a file path. Sound(path=...) would
+        # send it as a file:// URI instead, which some servers (e.g. KDE Plasma) silently ignore.
+        return Sound(uri=runtime_config.notification_sound_path)
+    return DEFAULT_NOTIFICATION_SOUND
 
 
 def show_notification(message: str, icon_name: str, stay_visible: bool = False):
     urgency = Urgency.Critical if stay_visible else Urgency.Normal
-    notify.send(title="", message=message, icon=Icon(name=icon_name), sound=NOTIFICATION_SOUND, urgency=urgency)
+    notify.send(title="", message=message, icon=Icon(name=icon_name), sound=notification_sound(), urgency=urgency)
 
 
 def finished_minimal_effort_notification():
-    play_notification_sound()
     show_notification(f"Minimal effort (<i>{format_duration(runtime_config.minimal_effort_duration)}</i>) done!", "data-information")
 
 
 def finished_work_notification():
-    play_notification_sound()
     show_notification(f"Work (<i>{format_duration(runtime_config.work_duration)}</i>) done! <br>"
                        f"Overtime is counting - finish before <b>{format_time(runtime_config.start_time + runtime_config.work_duration + runtime_config.overtime_duration)}</b>!", "data-warning", stay_visible=True)
 

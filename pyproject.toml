@@ -28,7 +28,6 @@ dependencies = [
     "desktop-notifier>=6.2.0,<7",
     "pytimeparse>=1.1.8,<2",
     "humanfriendly>=10.0,<11",
-    "PyAudio>=0.2.14,<0.3",
 ]
 
 [project.urls]
