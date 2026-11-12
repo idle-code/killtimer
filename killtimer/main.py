@@ -52,6 +52,7 @@ class RuntimeConfiguration:
 def parse_configuration(args: [str]) -> RuntimeConfiguration:
     parser = argparse.ArgumentParser(
         prog="killtimer",
+        usage="%(prog)s [options] [--] [command [arguments ...]]",
         description="Close application when time runs out",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -97,12 +98,15 @@ def parse_configuration(args: [str]) -> RuntimeConfiguration:
     )
     parser.add_argument(
         "command_to_run",
-        nargs="*",
+        # Everything after the executable name belongs to the command, even arguments looking like options
+        nargs=argparse.REMAINDER,
         metavar="command",
         help="Executable (with arguments) to run"
     )
 
     config = parser.parse_args(args)
+    if config.command_to_run[:1] == ["--"]:
+        config.command_to_run = config.command_to_run[1:]
     if config.minimal_effort is None:
         config.minimal_effort = 0.50 * config.work
         
@@ -188,8 +192,7 @@ def main() -> int:
     # Kill program under test if it is still running
     if user_command and user_command.poll() is None:
         print("Overtime depleted - terminating user command...")
-        os.killpg(os.getpgid(user_command.pid), signal.SIGTERM)
-        # CHECK: wait a bit and kill it if still running?
+        terminate_monitored_command(user_command)
 
     notify.clear_all()
 
@@ -255,14 +258,58 @@ def display_progress_continuously(user_command: Optional[subprocess.Popen]):
 def start_monitored_command() -> Optional[subprocess.Popen]:
     user_command: Optional[subprocess.Popen] = None
     if runtime_config.command_to_run:
-        user_command = subprocess.Popen(" ".join(["exec"] + runtime_config.command_to_run), shell=True,
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                        preexec_fn=os.setsid)
+        try:
+            # Run the command directly (without a shell) so its arguments are passed through unchanged.
+            # A new session makes the command lead its own process group, so it and its children
+            # can be terminated together.
+            user_command = subprocess.Popen(runtime_config.command_to_run,
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                            start_new_session=True)
+        except OSError as e:
+            rprint(f"[red]Could not launch monitored command: {e}[/red]")
+            sys.exit(1)
         time.sleep(1)
         if user_command.poll() is not None:
             rprint("[red]Could not launch monitored command![/red]")
             sys.exit(1)
     return user_command
+
+
+TERMINATION_GRACE_PERIOD = 5  # seconds
+
+
+def is_process_group_alive(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass  # The group exists, but we are not allowed to signal some of its members
+    return True
+
+
+def terminate_monitored_command(user_command: subprocess.Popen):
+    # The command was started in a new session, so its process group ID equals its PID
+    process_group_id = user_command.pid
+    try:
+        os.killpg(process_group_id, signal.SIGTERM)
+    except ProcessLookupError:
+        return  # Already gone
+
+    # Give the command (and its children) a chance to shut down cleanly
+    deadline = time.monotonic() + TERMINATION_GRACE_PERIOD
+    while time.monotonic() < deadline:
+        user_command.poll()  # Reap the main process so it doesn't keep the group alive as a zombie
+        if not is_process_group_alive(process_group_id):
+            return
+        time.sleep(0.1)
+
+    print(f"Command did not exit within {TERMINATION_GRACE_PERIOD} seconds - killing it...")
+    try:
+        os.killpg(process_group_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    user_command.wait()
 
 
 def display_configuration():
