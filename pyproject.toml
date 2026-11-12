@@ -1,11 +1,13 @@
-[tool.poetry]
+[project]
 name = "killtimer"
 version = "0.4.1"
 description = "Closes application after specified work interval"
 license = "GPL-3.0-or-later"
-homepage = "https://github.com/idle-code/killtimer"
 readme = "README.md"
-authors = ["Paweł Żukowski <p.z.idlecode@gmail.com>"]
+authors = [
+    { name = "Paweł Żukowski", email = "p.z.idlecode@gmail.com" },
+]
+requires-python = ">=3.11,<4"
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
@@ -14,23 +16,30 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: Unix",
     "Programming Language :: Python :: 3",
-    "Topic :: Utilities"
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "rich>=12.4.3,<13",
+    "desktop-notifier>=3.4.0,<4",
+    "pytimeparse>=1.1.8,<2",
+    "humanfriendly>=10.0,<11",
+    "PyAudio>=0.2.13,<0.3",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-rich = "^12.4.3"
-desktop-notifier = "^3.4.0"
-pytimeparse = "^1.1.8"
-humanfriendly = "^10.0"
-PyAudio = "^0.2.13"
+[project.urls]
+Homepage = "https://github.com/idle-code/killtimer"
+Repository = "https://github.com/idle-code/killtimer"
+Issues = "https://github.com/idle-code/killtimer/issues"
 
-[tool.poetry.dev-dependencies]
-
-[tool.poetry.scripts]
+[project.scripts]
 killtimer = "killtimer.main:main"
 killtimer-stats = "killtimer.stats:main"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
