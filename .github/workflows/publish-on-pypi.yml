@@ -7,9 +7,27 @@ jobs:
   publish-package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Build and publish to pypi
-        uses: JRubics/poetry-publish@v1.15
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
         with:
-          pypi_token: ${{ secrets.PYPI_TOKEN }}
-          extra_build_dependency_packages: "portaudio19-dev"
+          python-version: "3.x"
+
+      - name: Install poetry
+        run: python -m pip install "poetry>=2,<3"
+
+      - name: Check that tag matches package version
+        run: |
+          version="$(poetry version --short)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package version $version"
+            exit 1
+          fi
+
+      - name: Build package
+        run: poetry build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
