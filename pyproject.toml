@@ -1,6 +1,6 @@
 [project]
 name = "killtimer"
-version = "0.4.1"
+version = "0.5.0"
 description = "Closes application after specified work interval"
 license = "GPL-3.0-or-later"
 readme = "README.md"
