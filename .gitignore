@@ -253,3 +253,6 @@ gen/
 *.class
 
 *.csv
+
+# Serena (coding assistant) project data
+.serena/
